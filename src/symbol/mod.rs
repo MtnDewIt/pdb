@@ -389,7 +389,7 @@ impl<'t> TryFromCtx<'t> for SymbolData<'t> {
             S_PROC_ID_END => SymbolData::ProcedureEnd,
             S_LABEL32 | S_LABEL32_ST => SymbolData::Label(buf.parse_with(kind)?),
             S_BLOCK32 | S_BLOCK32_ST => SymbolData::Block(buf.parse_with(kind)?),
-            S_REGREL32 => SymbolData::RegisterRelative(buf.parse_with(kind)?),
+            S_REGREL32 | S_REGREL32_ENCTMP | S_REGREL32_INDIR => SymbolData::RegisterRelative(buf.parse_with(kind)?),
             S_THUNK32 | S_THUNK32_ST => SymbolData::Thunk(buf.parse_with(kind)?),
             S_SEPCODE => SymbolData::SeparatedCode(buf.parse_with(kind)?),
             S_OEM => SymbolData::OEM(buf.parse_with(kind)?),
@@ -409,7 +409,7 @@ impl<'t> TryFromCtx<'t> for SymbolData<'t> {
                 SymbolData::DefRangeSubFieldRegister(buf.parse_with(kind)?)
             }
             S_DEFRANGE_REGISTER_REL => SymbolData::DefRangeRegisterRelative(buf.parse_with(kind)?),
-            S_BPREL32 | S_BPREL32_ST | S_BPREL32_16T => {
+            S_BPREL32 | S_BPREL32_ST | S_BPREL32_16T | S_BPREL32_ENCTMP | S_BPREL32_INDIR => {
                 SymbolData::BasePointerRelative(buf.parse_with(kind)?)
             }
             S_FRAMEPROC => SymbolData::FrameProcedure(buf.parse_with(kind)?),
@@ -1691,10 +1691,17 @@ impl<'t> TryFromCtx<'t, SymbolKind> for RegisterRelativeSymbol<'t> {
 
         let offset: i32 = buf.parse()?;
         let type_index: TypeIndex = buf.parse()?;
+
+        if kind == S_REGREL32_INDIR {
+            let _offset_in_udt: u32 = buf.parse()?;
+        }
+
         let register: Register = buf.parse()?;
         let name: RawString<'t> = parse_symbol_name(&mut buf, kind)?;
 
-        let slot: Option<i32> = if (this.len() as i64 - name.len() as i64 - 0xci64) >= 6 {
+        let slot: Option<i32> = if kind == S_REGREL32_INDIR {
+            None
+        } else if (this.len() as i64 - name.len() as i64 - 0xci64) >= 6 {
             if this[name.len() + 0xf] == 0x24 {
                 Some(ParseBuffer::from(&this[(name.len() + 0x10)..]).parse()?)
             } else {
@@ -2377,13 +2384,20 @@ impl<'t> TryFromCtx<'t, SymbolKind> for BasePointerRelativeSymbol<'t> {
 
         let offset: i32 = buf.parse()?;
         let type_index = match kind {
-            S_BPREL32 | S_BPREL32_ST => buf.parse()?,
+            S_BPREL32 | S_BPREL32_ST | S_BPREL32_ENCTMP | S_BPREL32_INDIR => buf.parse()?,
             S_BPREL32_16T => TypeIndex::from(buf.parse::<u16>()? as u32),
             _ => return Err(Error::UnimplementedSymbolKind(kind)),
         };
+
+        if kind == S_BPREL32_INDIR {
+            let _offset_in_udt: u32 = buf.parse()?;
+        }
+
         let name: RawString<'t> = parse_symbol_name(&mut buf, kind)?;
 
-        let slot: Option<i32> = if (this.len() as i64 - name.len() as i64 - 0xai64) >= 6 {
+        let slot: Option<i32> = if kind == S_BPREL32_INDIR {
+            None
+        } else if (this.len() as i64 - name.len() as i64 - 0xai64) >= 6 {
             if this[name.len() + 0xd] == 0x24 {
                 Some(ParseBuffer::from(&this[(name.len() + 0xe)..]).parse()?)
             } else {

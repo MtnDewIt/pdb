@@ -285,6 +285,9 @@ pub const S_STATICLOCAL: u16 = 0x1176;
 
 pub const S_DEFRANGE_REGISTER_REL_INDIR: u16 = 0x1177;
 
+pub const S_BPREL32_ENCTMP: u16 = 0x1178;
+pub const S_REGREL32_ENCTMP: u16 = 0x1179;
+
 pub const S_RECTYPE_MAX: u16 = 0x1178;
 pub const S_RECTYPE_PAD: u16 = 0x1278;
 
